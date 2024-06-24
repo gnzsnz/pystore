@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: UTF-8 -*-
 #
 # PyStore: Flat-file datastore for timeseries data
 # https://github.com/ranaroussi/pystore
@@ -20,51 +19,56 @@
 
 import codecs
 from os import path
-from setuptools import setup, find_packages
+
+from setuptools import find_packages, setup
 
 here = path.abspath(path.dirname(__file__))
 
 # Get the long description from the README file
-with codecs.open(path.join(here, 'README.rst'), encoding='utf-8') as f:
+with codecs.open(path.join(here, "README.rst"), encoding="utf-8") as f:
     long_description = f.read()
 
 setup(
-    name='PyStore',
+    name="PyStore",
     version="0.1.24",
-    description='Fast data store for Pandas timeseries data',
+    description="Fast data store for Pandas timeseries data",
     long_description=long_description,
-    url='https://github.com/ranaroussi/pystore',
-    author='Ran Aroussi',
-    author_email='ran@aroussi.com',
-    license='Apache Software License',
+    url="https://github.com/ranaroussi/pystore",
+    author="Ran Aroussi",
+    author_email="ran@aroussi.com",
+    license="Apache Software License",
     classifiers=[
-        'License :: OSI Approved :: Apache Software License',
+        "License :: OSI Approved :: Apache Software License",
         # 'Development Status :: 4 - Beta',
-        'Development Status :: 5 - Production/Stable',
-
-        'Operating System :: OS Independent',
-        'Intended Audience :: Developers',
-        'Topic :: Database',
-        'Topic :: Database :: Database Engines/Servers',
-        'Topic :: Software Development :: Libraries',
-        'Topic :: Software Development :: Libraries :: Python Modules',
-
-        'Programming Language :: Python :: 2.7',
-        'Programming Language :: Python :: 3.5',
-        'Programming Language :: Python :: 3.6',
-        'Programming Language :: Python :: 3.7',
-        'Programming Language :: Python :: 3.8',
-        'Programming Language :: Python :: 3.9',
+        "Development Status :: 5 - Production/Stable",
+        "Operating System :: OS Independent",
+        "Intended Audience :: Developers",
+        "Topic :: Database",
+        "Topic :: Database :: Database Engines/Servers",
+        "Topic :: Software Development :: Libraries",
+        "Topic :: Software Development :: Libraries :: Python Modules",
+        "Programming Language :: Python :: 2.7",
+        "Programming Language :: Python :: 3.5",
+        "Programming Language :: Python :: 3.6",
+        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
     ],
-    platforms=['linux', 'unix', 'macOS'],
-    keywords='dask, datastore, flatfile, pystore',
-    packages=find_packages(exclude=['contrib', 'docs', 'tests', 'examples']),
-    install_requires=['python-snappy', 'multitasking', 'toolz', 'partd',
-                      'cloudpickle', 'distributed', 'pandas', 'numpy',
-                      'pyarrow', 'dask[dataframe]'],
+    platforms=["linux", "unix", "macOS"],
+    keywords="dask, datastore, flatfile, pystore",
+    packages=find_packages(exclude=["contrib", "docs", "tests", "examples"]),
+    install_requires=[
+        "python-snappy",
+        "multitasking",
+        "distributed",
+        "pandas",
+        "numpy",
+        "pyarrow",
+        "dask[dataframe]",
+    ],
     entry_points={
-        'console_scripts': [
-            'sample=sample:main',
+        "console_scripts": [
+            "sample=sample:main",
         ],
     },
 )

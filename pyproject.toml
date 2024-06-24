@@ -1,0 +1,44 @@
+[project.optional-dependencies] # Optional
+dev = [
+  "black>=24.4.2",
+  "pylint>=3.1.1",
+  "isort>=5.13.2",
+  "mypy>=1.10.0",
+  "pre-commit>=3.7.1",
+  "pandas-stubs>=2.2.1.240316",
+  "bandit[toml]>=1.7.8",
+  "flake8>=7.0.0",
+  "flake8-pytest-style>=2.0.0",
+  "pytest>=8.2.1",
+  "pytest-env>=1.1.3",
+  "pytest-cov>=4.1.0",
+  "pylint-pytest>=1.1.7",
+  "tox>=4.0.0",
+]
+#test = ["coverage"]
+
+[tool.isort]
+profile = "black"
+
+[tool.pylint.format]
+# black compatibility
+# https://black.readthedocs.io/en/stable/guides/using_black_with_other_tools.html#pylint
+max-line-length = "88"
+
+[tool.bandit]
+#exclude_dirs = ["tests"]
+skips = ["B110"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+log_cli = true
+#log_cli_level = "INFO"
+log_format = "%(asctime)s %(levelname)s %(message)s"
+log_date_format = "%Y-%m-%d %H:%M:%S"
+minversion = "6.0"
+filterwarnings = "ignore"
+norecursedirs = ["docs", "build"]
+
+# Specify a custom directory for pytest cache
+cache_dir = "tests/.pytest_cache"

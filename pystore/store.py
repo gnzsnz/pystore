@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: UTF-8 -*-
 #
 # PyStore: Flat-file datastore for timeseries data
 # https://github.com/ranaroussi/pystore
@@ -25,9 +24,9 @@ from . import utils
 from .collection import Collection
 
 
-class store(object):
+class store:
     def __repr__(self):
-        return "PyStore.datastore <%s>" % self.datastore
+        return "PyStore.datastore <{self.datastore}>"
 
     def __init__(self, datastore, engine="pyarrow"):
 
@@ -40,18 +39,33 @@ class store(object):
             os.makedirs(self.datastore)
             utils.write_metadata(self.datastore, {"engine": engine})
             self.engine = engine
+            self.metadata = utils.read_metadata(self.datastore)
         else:
-            metadata = utils.read_metadata(self.datastore)
-            if metadata:
-                self.engine = metadata["engine"]
+            self.metadata = utils.read_metadata(self.datastore)
+            if self.metadata["engine"] == engine:
+                self.engine = self.metadata["engine"]
             else:
                 # default / backward compatibility
                 self.engine = "pyarrow"
-                utils.write_metadata(self.datastore, {"engine": self.engine})
+                # utils.write_metadata(self.datastore, {"engine": self.engine})
 
         self.collections = self.list_collections()
 
-    def _create_collection(self, collection, overwrite=False):
+    def __getitem__(self, collection: Collection) -> Collection:
+        if collection not in self.collections:
+            raise KeyError(f"Key not in store {self.datastore}")
+        return self.collection(collection)
+
+    def __len__(self):
+        return len(self.collections)
+
+    def __contains__(self, collection):
+        return collection in self.collections
+
+    def __iter__(self):
+        return iter(self.collections)
+
+    def _create_collection(self, collection, metadata: dict, overwrite=False):
         # create collection (subdir)
         collection_path = utils.make_path(self.datastore, collection)
         if utils.path_exists(collection_path):
@@ -59,13 +73,16 @@ class store(object):
                 self.delete_collection(collection)
             else:
                 raise ValueError(
-                    "Collection exists! To overwrite, use `overwrite=True`")
+                    "Collection exists! To overwrite, use `overwrite=True`"
+                )
 
         os.makedirs(collection_path)
         os.makedirs(utils.make_path(collection_path, "_snapshots"))
 
         # update collections
         self.collections = self.list_collections()
+        if metadata:
+            utils.write_metadata(collection_path, metadata)
 
         # return the collection
         return Collection(collection, self.datastore)
@@ -82,12 +99,14 @@ class store(object):
         # lists collections (subdirs)
         return utils.subdirs(self.datastore)
 
-    def collection(self, collection, overwrite=False):
+    def collection(
+        self, collection: Collection, metadata: dict = None, overwrite=False
+    ) -> Collection:
         if collection in self.collections and not overwrite:
             return Collection(collection, self.datastore, self.engine)
 
         # create it
-        self._create_collection(collection, overwrite)
+        self._create_collection(collection, metadata, overwrite)
         return Collection(collection, self.datastore, self.engine)
 
     def item(self, collection, item):

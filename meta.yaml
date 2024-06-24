@@ -16,30 +16,24 @@ build:
 
 requirements:
   host:
-    - cloudpickle
     - dask
     - distributed
     - pyarrow
     - multitasking
     - numpy
     - pandas
-    - partd
     - pip
     - python
     - python-snappy
-    - toolz
   run:
-    - cloudpickle
     - dask
     - distributed
     - pyarrow
     - multitasking
     - numpy
     - pandas
-    - partd
     - python
     - python-snappy
-    - toolz
 
 test:
   imports:

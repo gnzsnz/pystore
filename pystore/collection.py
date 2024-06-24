@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: UTF-8 -*-
 #
 # PyStore: Flat-file datastore for timeseries data
 # https://github.com/ranaroussi/pystore
@@ -19,29 +18,45 @@
 # limitations under the License.
 
 import os
-import time
 import shutil
+import time
+
 import dask.dataframe as dd
 import multitasking
 
-from . import utils
+from . import config, utils
 from .item import Item
-from . import config
 
 
-class Collection(object):
+class Collection:
     def __repr__(self):
-        return "PyStore.collection <%s>" % self.collection
+        return f"PyStore.collection <{self.collection}>"
 
     def __init__(self, collection, datastore, engine="pyarrow"):
         self.engine = engine
         self.datastore = datastore
         self.collection = collection
+        self.path = utils.make_path(self.datastore, self.collection)
         self.items = self.list_items()
         self.snapshots = self.list_snapshots()
+        self.metadata = utils.read_metadata(self.path)
+
+    def __getitem__(self, item: Item) -> Item:
+        if item not in self.items:
+            raise KeyError(f"Item {item} not in collection {self.collection}")
+        return self.item(item)
+
+    def __len__(self):
+        return len(self.items)
+
+    def __contains__(self, item):
+        return item in self.items
+
+    def __iter__(self):
+        return iter(self.items)
 
     def _item_path(self, item, as_string=False):
-        p = utils.make_path(self.datastore, self.collection, item)
+        p = utils.make_path(self.path, item)
         if as_string:
             return str(p)
         return p
@@ -51,14 +66,13 @@ class Collection(object):
         self.items = self.list_items(**kwargs)
 
     def list_items(self, **kwargs):
-        dirs = utils.subdirs(utils.make_path(self.datastore, self.collection))
+        dirs = utils.subdirs(self.path)
         if not kwargs:
             return set(dirs)
 
         matched = []
         for d in dirs:
-            meta = utils.read_metadata(utils.make_path(
-                self.datastore, self.collection, d))
+            meta = utils.read_metadata(utils.make_path(self.path, d))
             del meta["_updated"]
 
             m = 0
@@ -73,17 +87,24 @@ class Collection(object):
         return set(matched)
 
     def item(self, item, snapshot=None, filters=None, columns=None):
-        return Item(item, self.datastore, self.collection,
-                    snapshot, filters, columns, engine=self.engine)
+        return Item(
+            item,
+            self.datastore,
+            self.collection,
+            snapshot,
+            filters,
+            columns,
+            engine=self.engine,
+        )
 
     def index(self, item, last=False):
-        data = dd.read_parquet(self._item_path(item, as_string=True),
-                               columns="index", engine=self.engine)
+        data = dd.read_parquet(
+            self._item_path(item, as_string=True), columns=[], engine=self.engine
+        )
         if not last:
             return data.index.compute()
 
-        return float(str(data.index).split(
-                     "\nName")[0].split("\n")[-1].split(" ")[0])
+        return float(str(data.index).split("\nName")[0].split("\n")[-1].split(" ")[0])
 
     def delete_item(self, item, reload_items=False):
         shutil.rmtree(self._item_path(item))
@@ -93,24 +114,46 @@ class Collection(object):
         return True
 
     @multitasking.task
-    def write_threaded(self, item, data, metadata={},
-                       npartitions=None,
-                       overwrite=False, epochdate=False,
-                       reload_items=False, **kwargs):
-        return self.write(item, data, metadata,
-                          npartitions, overwrite,
-                          epochdate, reload_items,
-                          **kwargs)
+    def write_threaded(
+        self,
+        item,
+        data,
+        metadata={},
+        npartitions=None,
+        overwrite=False,
+        epochdate=False,
+        reload_items=False,
+        **kwargs,
+    ):
+        return self.write(
+            item,
+            data,
+            metadata,
+            npartitions,
+            overwrite,
+            epochdate,
+            reload_items,
+            **kwargs,
+        )
 
-    def write(self, item, data, metadata={},
-              npartitions=None, overwrite=False,
-              epochdate=False, reload_items=False,
-              **kwargs):
+    def write(
+        self,
+        item,
+        data,
+        metadata={},
+        npartitions=None,
+        overwrite=False,
+        epochdate=False,
+        reload_items=False,
+        **kwargs,
+    ):
 
         if utils.path_exists(self._item_path(item)) and not overwrite:
-            raise ValueError("""
+            raise ValueError(
+                """
                 Item already exists. To overwrite, use `overwrite=True`.
-                Otherwise, use `<collection>.append()`""")
+                Otherwise, use `<collection>.append()`"""
+            )
 
         if isinstance(data, Item):
             data = data.to_pandas()
@@ -129,45 +172,56 @@ class Collection(object):
         if npartitions is None:
             memusage = data.memory_usage(deep=True).sum()
             if isinstance(data, dd.DataFrame):
-                npartitions = int(
-                    1 + memusage.compute() // config.PARTITION_SIZE)
+                npartitions = int(1 + memusage.compute() // config.PARTITION_SIZE)
                 data = data.repartition(npartitions=npartitions)
             else:
-                npartitions = int(
-                    1 + memusage // config.PARTITION_SIZE)
+                npartitions = int(1 + memusage // config.PARTITION_SIZE)
                 data = dd.from_pandas(data, npartitions=npartitions)
         else:
             if not isinstance(data, dd.DataFrame):
                 data = dd.from_pandas(data, npartitions=npartitions)
 
-        dd.to_parquet(data, self._item_path(item, as_string=True), overwrite=overwrite,
-                      compression="snappy", engine=self.engine, **kwargs)
+        dd.to_parquet(
+            data,
+            self._item_path(item, as_string=True),
+            overwrite=overwrite,
+            compression="snappy",
+            engine=self.engine,
+            **kwargs,
+        )
 
-        utils.write_metadata(utils.make_path(
-            self.datastore, self.collection, item), metadata)
+        utils.write_metadata(utils.make_path(self.path, item), metadata)
 
         # update items
         self.items.add(item)
         if reload_items:
             self._list_items_threaded()
 
-    def append(self, item, data, npartitions=None, epochdate=False,
-               threaded=False, reload_items=False, **kwargs):
+    def append(
+        self,
+        item,
+        data,
+        npartitions=None,
+        epochdate=False,
+        threaded=False,
+        reload_items=False,
+        **kwargs,
+    ):
 
         if not utils.path_exists(self._item_path(item)):
-            raise ValueError(
-                """Item do not exists. Use `<collection>.write(...)`""")
+            raise ValueError("""Item do not exists. Use `<collection>.write(...)`""")
 
         # work on copy
         data = data.copy()
 
         try:
-            if epochdate or ("datetime" in str(data.index.dtype) and
-                             any(data.index.nanosecond) > 0):
+            if epochdate or (
+                "datetime" in str(data.index.dtype) and any(data.index.nanosecond) > 0
+            ):
                 data = utils.datetime_to_int64(data)
-            old_index = dd.read_parquet(self._item_path(item, as_string=True),
-                                        columns=[], engine=self.engine
-                                        ).index.compute()
+            old_index = dd.read_parquet(
+                self._item_path(item, as_string=True), columns=[], engine=self.engine
+            ).index.compute()
             data = data[~data.index.isin(old_index)]
         except Exception:
             return
@@ -191,43 +245,41 @@ class Collection(object):
 
         combined = combined.repartition(npartitions=npartitions).drop_duplicates(
             keep="last"
-            )
+        )
         tmp_item = "__" + item
         # write data
         write = self.write_threaded if threaded else self.write
-        write(tmp_item, combined, npartitions=npartitions,
-              metadata=current.metadata, overwrite=False,
-              epochdate=epochdate, reload_items=reload_items, **kwargs)
+        write(
+            tmp_item,
+            combined,
+            npartitions=npartitions,
+            metadata=current.metadata,
+            overwrite=False,
+            epochdate=epochdate,
+            reload_items=reload_items,
+            **kwargs,
+        )
 
-        try:
+        if threaded:
             multitasking.wait_for_tasks()
-            self.delete_item(item=item,reload_items=False)
-            shutil.move(self._item_path(tmp_item),self._item_path(item))
-            self._list_items_threaded()
-        except Exception as errn:
-            raise ValueError(
-                "Error: %s" % repr(errn)
-            ) from errn
+        self.delete_item(item=item, reload_items=False)
+        shutil.move(self._item_path(tmp_item), self._item_path(item))
 
     def create_snapshot(self, snapshot=None):
         if snapshot:
-            snapshot = "".join(
-                e for e in snapshot if e.isalnum() or e in [".", "_"])
+            snapshot = "".join(e for e in snapshot if e.isalnum() or e in [".", "_"])
         else:
             snapshot = str(int(time.time() * 1000000))
 
-        src = utils.make_path(self.datastore, self.collection)
-        dst = utils.make_path(src, "_snapshots", snapshot)
+        dst = utils.make_path(self.path, "_snapshots", snapshot)
 
-        shutil.copytree(src, dst,
-                        ignore=shutil.ignore_patterns("_snapshots"))
+        shutil.copytree(self.path, dst, ignore=shutil.ignore_patterns("_snapshots"))
 
         self.snapshots = self.list_snapshots()
         return True
 
     def list_snapshots(self):
-        snapshots = utils.subdirs(utils.make_path(
-            self.datastore, self.collection, "_snapshots"))
+        snapshots = utils.subdirs(utils.make_path(self.path, "_snapshots"))
         return set(snapshots)
 
     def delete_snapshot(self, snapshot):
@@ -235,14 +287,12 @@ class Collection(object):
             # raise ValueError("Snapshot `%s` doesn't exist" % snapshot)
             return True
 
-        shutil.rmtree(utils.make_path(self.datastore, self.collection,
-                                      "_snapshots", snapshot))
+        shutil.rmtree(utils.make_path(self.path, "_snapshots", snapshot))
         self.snapshots = self.list_snapshots()
         return True
 
     def delete_snapshots(self):
-        snapshots_path = utils.make_path(
-            self.datastore, self.collection, "_snapshots")
+        snapshots_path = utils.make_path(self.path, "_snapshots")
         shutil.rmtree(snapshots_path)
         os.makedirs(snapshots_path)
         self.snapshots = self.list_snapshots()

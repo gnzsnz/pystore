@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: UTF-8 -*-
 #
 # PyStore: Flat-file datastore for timeseries data
 # https://github.com/ranaroussi/pystore
@@ -24,41 +23,47 @@ import pandas as pd
 from . import utils
 
 
-class Item(object):
+class Item:
     def __repr__(self):
-        return "PyStore.item <%s/%s>" % (self.collection, self.item)
+        return f"PyStore.item <{self.collection}/{self.item}>"
 
-    def __init__(self, item, datastore, collection,
-                 snapshot=None, filters=None, columns=None,
-                 engine="pyarrow"):
+    def __init__(
+        self,
+        item,
+        datastore,
+        collection,
+        snapshot=None,
+        filters=None,
+        columns=None,
+        engine="pyarrow",
+    ):
         self.engine = engine
         self.datastore = datastore
         self.collection = collection
         self.snapshot = snapshot
         self.item = item
 
-        self._path = utils.make_path(datastore, collection, item)
-        if not self._path.exists():
+        self.path = utils.make_path(datastore, collection, item)
+        if not self.path.exists():
             raise ValueError(
-                "Item `%s` doesn't exist. "
-                "Create it using collection.write(`%s`, data, ...)" % (
-                    item, item))
+                f"Item `{item}` doesn't exist. "
+                f"Create it using collection.write(`{item}`, data, ...)"
+            )
         if snapshot:
-            snap_path = utils.make_path(
-                datastore, collection, "_snapshots", snapshot)
+            snap_path = utils.make_path(datastore, collection, "_snapshots", snapshot)
 
-            self._path = utils.make_path(snap_path, item)
+            self.path = utils.make_path(snap_path, item)
 
             if not utils.path_exists(snap_path):
-                raise ValueError("Snapshot `%s` doesn't exist" % snapshot)
+                raise ValueError(f"Snapshot `{snapshot}` doesn't exist")
 
-            if not utils.path_exists(self._path):
-                raise ValueError(
-                    "Item `%s` doesn't exist in this snapshot" % item)
+            if not utils.path_exists(self.path):
+                raise ValueError(f"Item `{item}` doesn't exist in this snapshot")
 
-        self.metadata = utils.read_metadata(self._path)
+        self.metadata = utils.read_metadata(self.path)
         self.data = dd.read_parquet(
-            self._path, engine=self.engine, filters=filters, columns=columns)
+            self.path, engine=self.engine, filters=filters, columns=columns
+        )
 
     def to_pandas(self, parse_dates=True):
         df = self.data.compute()
@@ -66,11 +71,11 @@ class Item(object):
         if parse_dates and "datetime" not in str(df.index.dtype):
             df.index.name = ""
             if str(df.index.dtype) == "float64":
-                df.index = pd.to_datetime(df.index, unit="s",
-                                          infer_datetime_format=True)
+                df.index = pd.to_datetime(
+                    df.index, unit="s", infer_datetime_format=True
+                )
             elif df.index.values[0] > 1e6:
-                df.index = pd.to_datetime(df.index,
-                                          infer_datetime_format=True)
+                df.index = pd.to_datetime(df.index, infer_datetime_format=True)
 
         return df
 
