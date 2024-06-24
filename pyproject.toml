@@ -63,6 +63,9 @@ dev = [
 [tool.setuptools]
 platforms = ['linux', 'unix', 'macOS']
 
+[tool.setuptools.dynamic]
+version = {attr = "pystore.__version__"}
+
 [tool.isort]
 profile = "black"
 
