@@ -31,7 +31,7 @@ from .utils import (
     set_path,
 )
 
-__version__ = "0.1.23"
+__version__ = "0.1.25"
 __author__ = "Ran Aroussi"
 
 __all__ = [
