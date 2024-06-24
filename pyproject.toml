@@ -3,7 +3,7 @@ keywords = ["dask", "datastore", "flatfile", "pystore"]
 name = "PyStore"
 dynamic = ["version"]
 description = "Fast data store for Pandas timeseries data"
-authors = [{name = "Ran Aroussi", email = "ran@aroussi.com"}]
+authors = [{ name = "Ran Aroussi", email = "ran@aroussi.com" }]
 license = { file = "LICENSE.txt" }
 classifiers = [
   "License :: OSI Approved :: Apache Software License",
@@ -15,12 +15,10 @@ classifiers = [
   "Topic :: Database :: Database Engines/Servers",
   "Topic :: Software Development :: Libraries",
   "Topic :: Software Development :: Libraries :: Python Modules",
-  "Programming Language :: Python :: 2.7",
-  "Programming Language :: Python :: 3.5",
-  "Programming Language :: Python :: 3.6",
-  "Programming Language :: Python :: 3.7",
-  "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
 ]
 readme = "README.md"
 requires-python = ">=3.9"
