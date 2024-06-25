@@ -25,8 +25,10 @@ from .collection import Collection
 
 
 class store:
+    """Pystore"""
+
     def __repr__(self):
-        return "PyStore.datastore <{self.datastore}>"
+        return f"PyStore.datastore <{self.datastore}>"
 
     def __init__(self, datastore, engine="pyarrow"):
 
