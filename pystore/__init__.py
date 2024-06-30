@@ -17,7 +17,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .store import store
+"""PyStore package"""
+
+from .store import Store
 from .utils import (
     delete_store,
     delete_stores,
@@ -31,11 +33,11 @@ from .utils import (
     set_path,
 )
 
-__version__ = "0.1.25"
+__version__ = "0.1.26"
 __author__ = "Ran Aroussi"
 
 __all__ = [
-    "store",
+    "Store",
     "read_csv",
     "get_path",
     "set_path",

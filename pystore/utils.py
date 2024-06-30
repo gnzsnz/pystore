@@ -17,22 +17,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""PyStore utils module"""
+
 import json
 import os
 import shutil
 from datetime import datetime
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from dask import dataframe as dd
 from dask.distributed import Client
-
-try:
-    from pathlib import Path
-
-    Path().expanduser()
-except (ImportError, AttributeError):
-    from pathlib2 import Path
 
 from . import config
 

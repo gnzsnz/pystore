@@ -17,6 +17,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""PyStore Item module"""
+
 import dask.dataframe as dd
 import pandas as pd
 
@@ -24,8 +26,14 @@ from . import utils
 
 
 class Item:
+    """PyStore Item"""
+
     def __repr__(self):
-        return f"PyStore.item <{self.collection}/{self.item}>"
+        cls = self.__class__.__name__
+        return (
+            f"{cls}(item={self.item!r}, datastore={self.datastore!r}, "
+            f"collection={self.collection!r})"
+        )
 
     def __init__(
         self,
@@ -65,7 +73,15 @@ class Item:
             self.path, engine=self.engine, filters=filters, columns=columns
         )
 
-    def to_pandas(self, parse_dates=True):
+    def to_pandas(self, parse_dates=True) -> pd.DataFrame:
+        """return pandas data frame
+
+        Args:
+            parse_dates (bool, optional): parse dates in epoch format. Defaults to True.
+
+        Returns:
+            _type_: _description_
+        """
         df = self.data.compute()
 
         if parse_dates and "datetime" not in str(df.index.dtype):
@@ -79,8 +95,24 @@ class Item:
 
         return df
 
-    def head(self, n=5):
+    def head(self, n=5) -> dd.DataFrame:
+        """data frame head
+
+        Args:
+            n (int, optional): top n records. Defaults to 5.
+
+        Returns:
+            dd.DataFrame: top n records
+        """
         return self.data.head(n)
 
-    def tail(self, n=5):
+    def tail(self, n=5) -> dd.DataFrame:
+        """data frame tail
+
+        Args:
+            n (int, optional): last n records. Defaults to 5.
+
+        Returns:
+            dd.DataFrame: last n records
+        """
         return self.data.tail(n)

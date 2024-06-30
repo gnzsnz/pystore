@@ -17,20 +17,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""PyStore Collection module"""
+
 import os
 import shutil
 import time
 
 import dask.dataframe as dd
 import multitasking
+from pandas import DataFrame
 
 from . import config, utils
 from .item import Item
 
 
 class Collection:
+    """PyStore Collection"""
+
     def __repr__(self):
-        return f"PyStore.collection <{self.collection}>"
+        cls = self.__class__.__name__
+        return f"{cls}(collection={self.collection!r}, datastore={self.datastore!r})"
 
     def __init__(self, collection, datastore, engine="pyarrow"):
         self.engine = engine
@@ -87,6 +93,7 @@ class Collection:
         return set(matched)
 
     def item(self, item, snapshot=None, filters=None, columns=None):
+        """Item factory method"""
         return Item(
             item,
             self.datastore,
@@ -106,9 +113,37 @@ class Collection:
 
         return float(str(data.index).split("\nName")[0].split("\n")[-1].split(" ")[0])
 
-    def delete_item(self, item, reload_items=False):
+    def delete_item(self, item: str, reload_items: bool = False) -> bool:
+        """delete item from collection
+
+        Args:
+            item (str): item name
+            reload_items (bool, optional): refresh self.items. Defaults to False.
+
+        Returns:
+            bool: True on success
+        """
+        return self._raw_delete(item, reload_items)
+
+    def _raw_delete(
+        self,
+        item: str,
+        reload_items: bool = False,
+        update_items: bool = True,
+    ) -> bool:
+        """delete internal implementation
+
+        Args:
+            item (str): item name
+            reload_items (bool): call self._list_items_threaded
+            update_items (bool, optional): call self.items.add(item). Defaults to True.
+
+        Returns:
+            bool: True on success
+        """
         shutil.rmtree(self._item_path(item))
-        self.items.remove(item)
+        if update_items:
+            self.items.remove(item)
         if reload_items:
             self.items = self._list_items_threaded()
         return True
@@ -138,16 +173,28 @@ class Collection:
 
     def write(
         self,
-        item,
-        data,
-        metadata={},
-        npartitions=None,
+        item: str,
+        data: DataFrame | dd.DataFrame,
+        metadata: dict = {},
+        npartitions: int = None,
         overwrite=False,
         epochdate=False,
         reload_items=False,
         **kwargs,
     ):
+        """write item
 
+        Args:
+            item (str): item name
+            data (DataFrame | dd.DataFrame): data to write
+            metadata (dict, optional): additional metadata. Defaults to {}.
+            npartitions (int, optional): partition number. Defaults to None.
+            overwrite (bool, optional): overwrite existing item. Defaults to False.
+            epochdate (bool, optional): index in epochdate format. Defaults to False.
+            reload_items (bool, optional): reload collection items from storage.
+            Defaults to False.
+
+        """
         if utils.path_exists(self._item_path(item)) and not overwrite:
             raise ValueError(
                 """
@@ -181,6 +228,43 @@ class Collection:
             if not isinstance(data, dd.DataFrame):
                 data = dd.from_pandas(data, npartitions=npartitions)
 
+        self._raw_write(
+            item=item,
+            data=data,
+            overwrite=overwrite,
+            metadata=metadata,
+            reload_items=reload_items,
+            **kwargs,
+        )
+
+    def _raw_write(
+        self,
+        item: str,
+        data: dd.DataFrame,
+        overwrite: bool,
+        metadata: dict,
+        reload_items: bool,
+        append: bool = False,
+        append_item: str | None = None,
+        update_items: bool = True,
+        **kwargs,
+    ):
+        """private method for writing dask data frames"
+
+        Args:
+            item (str): item
+            data (dd.DataFrame): dask data frame
+            overwrite (bool): boll
+            metadata (dict): metadata
+            reload_items (bool): call self._list_items_threaded
+            update_items (bool, optional): call self.items.add(item). Defaults to True.
+        """
+        if append and append_item is None:
+            raise ValueError(
+                f"Invalid parameter combination, append{append} and "
+                f"append_item {append_item}."
+            )
+
         dd.to_parquet(
             data,
             self._item_path(item, as_string=True),
@@ -192,22 +276,38 @@ class Collection:
 
         utils.write_metadata(utils.make_path(self.path, item), metadata)
 
+        if append and append_item is not None:
+            # on append swith "__item" to "item"
+            self._raw_delete(item=append_item, reload_items=False, update_items=False)
+            shutil.move(self._item_path(item), self._item_path(append_item))
+
         # update items
-        self.items.add(item)
+        if update_items:
+            self.items.add(item)
         if reload_items:
             self._list_items_threaded()
 
     def append(
         self,
-        item,
-        data,
-        npartitions=None,
+        item: str,
+        data: DataFrame | dd.DataFrame,
+        npartitions: int | None = None,
         epochdate=False,
         threaded=False,
-        reload_items=False,
         **kwargs,
     ):
+        """append data to item
 
+        Args:
+            item (str): item name
+            data (DataFrame | dd.DataFrame): dataframe with data
+            npartitions (int, optional): number of partitions. Defaults to None.
+            epochdate (bool, optional): index in epochdate format. Defaults to False.
+            threaded (bool, optional): write in thread. Defaults to False.
+
+        Raises:
+            ValueError: _description_
+        """
         if not utils.path_exists(self._item_path(item)):
             raise ValueError("""Item do not exists. Use `<collection>.write(...)`""")
 
@@ -248,24 +348,29 @@ class Collection:
         )
         tmp_item = "__" + item
         # write data
-        write = self.write_threaded if threaded else self.write
-        write(
-            tmp_item,
-            combined,
-            npartitions=npartitions,
-            metadata=current.metadata,
+        _write = multitasking.task(self._raw_write) if threaded else self._raw_write
+        _write(
+            item=tmp_item,
+            data=combined,
             overwrite=False,
-            epochdate=epochdate,
-            reload_items=reload_items,
+            metadata=current.metadata,
+            reload_items=False,
+            append=True,
+            append_item=item,
+            update_items=False,
             **kwargs,
         )
 
-        if threaded:
-            multitasking.wait_for_tasks()
-        self.delete_item(item=item, reload_items=False)
-        shutil.move(self._item_path(tmp_item), self._item_path(item))
+    def create_snapshot(self, snapshot: str | None = None) -> bool:
+        """create snapshot
 
-    def create_snapshot(self, snapshot=None):
+        Args:
+            snapshot (str|None, optional): snapshot name.
+            if None name time.time() * 10e6.
+
+        Returns:
+            boll: True on success
+        """
         if snapshot:
             snapshot = "".join(e for e in snapshot if e.isalnum() or e in [".", "_"])
         else:
@@ -279,10 +384,23 @@ class Collection:
         return True
 
     def list_snapshots(self):
+        """list snapshots
+
+        Returns:
+            set: snapshots names
+        """
         snapshots = utils.subdirs(utils.make_path(self.path, "_snapshots"))
         return set(snapshots)
 
-    def delete_snapshot(self, snapshot):
+    def delete_snapshot(self, snapshot: str):
+        """delete snapshot
+
+        Args:
+            snapshot (str): snapshot name
+
+        Returns:
+            bool: True on success
+        """
         if snapshot not in self.snapshots:
             # raise ValueError("Snapshot `%s` doesn't exist" % snapshot)
             return True
@@ -292,6 +410,7 @@ class Collection:
         return True
 
     def delete_snapshots(self):
+        """delete all snapshots at store level"""
         snapshots_path = utils.make_path(self.path, "_snapshots")
         shutil.rmtree(snapshots_path)
         os.makedirs(snapshots_path)

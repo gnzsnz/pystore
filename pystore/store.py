@@ -17,18 +17,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""PyStore Store module"""
+
 import os
 import shutil
+from typing import Any
 
 from . import utils
 from .collection import Collection
+from .item import Item
 
 
-class store:
+class Store:
     """Pystore"""
 
     def __repr__(self):
-        return f"PyStore.datastore <{self.datastore}>"
+        cls = self.__class__.__name__
+        return f"{cls}(datastore={self.datastore.name!r})"
 
     def __init__(self, datastore, engine="pyarrow"):
 
@@ -83,13 +88,20 @@ class store:
 
         # update collections
         self.collections = self.list_collections()
-        if metadata:
-            utils.write_metadata(collection_path, metadata)
+        utils.write_metadata(collection_path, metadata)
 
         # return the collection
         return Collection(collection, self.datastore)
 
-    def delete_collection(self, collection):
+    def delete_collection(self, collection: str) -> bool:
+        """delete collection
+
+        Args:
+            collection (str): collection name
+
+        Returns:
+            bool: True on success
+        """
         # delete collection (subdir)
         shutil.rmtree(utils.make_path(self.datastore, collection))
 
@@ -97,20 +109,46 @@ class store:
         self.collections = self.list_collections()
         return True
 
-    def list_collections(self):
+    def list_collections(self) -> list[str | Any]:
+        """list store collections by reading from storage
+
+        Returns:
+            list[str|Any]: list with collections
+        """
         # lists collections (subdirs)
         return utils.subdirs(self.datastore)
 
     def collection(
-        self, collection: Collection, metadata: dict = None, overwrite=False
+        self, collection: str, metadata: dict = None, overwrite=False
     ) -> Collection:
+        """collection instance
+
+        Args:
+            collection (str): collection name
+            metadata (dict, optional): collection metadata . Defaults to None.
+            overwrite (bool, optional): overwrite existing collection.
+            Defaults to False.
+
+        Returns:
+            Collection: collection instance
+        """
         if collection in self.collections and not overwrite:
             return Collection(collection, self.datastore, self.engine)
 
-        # create it
-        self._create_collection(collection, metadata, overwrite)
+        # create collection
+        _meta = metadata if metadata else {}
+        self._create_collection(collection, _meta, overwrite)
         return Collection(collection, self.datastore, self.engine)
 
-    def item(self, collection, item):
+    def item(self, collection: str, item: str) -> Item:
+        """return item instance
+
+        Args:
+            collection (str): collection name
+            item (str): item name
+
+        Returns:
+            Item: item instance
+        """
         # bypasses collection
         return self.collection(collection).item(item)
